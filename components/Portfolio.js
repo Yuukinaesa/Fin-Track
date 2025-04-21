@@ -265,7 +265,7 @@ export default function Portfolio({
   // Fetch exchange rate immediately and periodically
   useEffect(() => {
     fetchExchangeRate();
-    const interval = setInterval(fetchExchangeRate, 300000); // Update every 5 minutes
+    const interval = setInterval(fetchExchangeRate, 900000); // Update every 15 minutes
     
     return () => clearInterval(interval);
   }, []);
@@ -273,7 +273,7 @@ export default function Portfolio({
   // Fetch asset prices when assets change or on demand
   useEffect(() => {
     fetchPrices();
-    const interval = setInterval(fetchPrices, 300000); // Update every 5 minutes
+    const interval = setInterval(fetchPrices, 900000); // Update every 15 minutes
     
     return () => clearInterval(interval);
   }, [assets, exchangeRate]);

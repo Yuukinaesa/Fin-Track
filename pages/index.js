@@ -139,7 +139,7 @@ export default function Home() {
 
     if (assets.stocks.length > 0 || assets.crypto.length > 0) {
       fetchPrices();
-      const interval = setInterval(fetchPrices, 300000); // Update every 5 minutes
+      const interval = setInterval(fetchPrices, 900000); // Update every 15 minutes
       return () => clearInterval(interval);
     }
   }, [assets, exchangeRate]);
