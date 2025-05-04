@@ -33,27 +33,48 @@ export default function Home() {
   useEffect(() => {
     const updatePendingTransactions = async () => {
       if (Object.keys(prices).length > 0 && exchangeRate) {
-        const updatedTransactions = transactions.map(transaction => {
+        const updatedTransactions = [];
+        let hasChanges = false;
+
+        for (const transaction of transactions) {
           if (transaction.isPending) {
             const priceData = prices[transaction.ticker || transaction.symbol];
             if (priceData) {
-              return {
+              const updatedTransaction = {
                 ...transaction,
-                isPending: false
+                isPending: false,
+                priceData: priceData
               };
-            }
-          }
-          return transaction;
-        });
+              updatedTransactions.push(updatedTransaction);
+              hasChanges = true;
 
-        if (JSON.stringify(updatedTransactions) !== JSON.stringify(transactions)) {
+              // Update the transaction in Firestore
+              try {
+                const transactionRef = doc(db, "users", user.uid, "transactions", transaction.id);
+                await updateDoc(transactionRef, {
+                  isPending: false,
+                  priceData: priceData,
+                  updatedAt: serverTimestamp()
+                });
+              } catch (error) {
+                console.error("Error updating transaction:", error);
+              }
+            } else {
+              updatedTransactions.push(transaction);
+            }
+          } else {
+            updatedTransactions.push(transaction);
+          }
+        }
+
+        if (hasChanges) {
           setTransactions(updatedTransactions);
         }
       }
     };
 
     updatePendingTransactions();
-  }, [prices, exchangeRate, transactions]);
+  }, [prices, exchangeRate, transactions, user]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
