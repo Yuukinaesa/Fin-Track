@@ -1,11 +1,12 @@
 import { useState } from 'react';
 
-export default function StockInput({ onAdd, onComplete }) {
+export default function StockInput({ onAdd, onComplete, exchangeRate }) {
   const [ticker, setTicker] = useState('');
-  const [lots, setLots] = useState('1');  // Ubah dari number ke string untuk mendukung angka desimal
-  const [exchange, setExchange] = useState('JK');  // Default ke Indonesia market
+  const [lots, setLots] = useState('1');
+  const [exchange, setExchange] = useState('JK');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   
   const popularStocks = [
     { ticker: 'BBCA', name: 'Bank Central Asia', exchange: 'JK' },
@@ -18,40 +19,94 @@ export default function StockInput({ onAdd, onComplete }) {
   
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!ticker) {
-      setError('Masukkan kode saham');
-      return;
-    }
-    
-    // Validasi jumlah (bisa berupa angka desimal)
-    const lotsValue = parseFloat(lots);
-    if (isNaN(lotsValue) || lotsValue <= 0) {
-      setError('Masukkan jumlah yang valid (lebih dari 0)');
-      return;
-    }
-    
     setIsLoading(true);
     setError(null);
-    
+
     try {
-      // Format ticker berdasarkan exchange
+      // Validate input
+      if (!ticker || !lots) {
+        throw new Error('Kode saham dan jumlah lot harus diisi');
+      }
+
+      // Validate lots is a positive number
+      const lotsNum = parseFloat(lots);
+      if (isNaN(lotsNum) || lotsNum <= 0) {
+        throw new Error('Jumlah lot harus lebih dari 0');
+      }
+
+      // Format ticker based on exchange
       const formattedTicker = exchange ? `${ticker}:${exchange}` : ticker;
       
-      onAdd({
-        ticker: formattedTicker,
-        lots: lotsValue,  // Simpan sebagai float
-        type: 'stock',
-        addedAt: new Date().toISOString()
+      // Fetch current stock price
+      const response = await fetch('/api/prices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          stocks: [formattedTicker],
+          crypto: [],
+          exchangeRate: exchangeRate
+        }),
       });
       
+      if (!response.ok) {
+        throw new Error('Gagal mengambil harga saham');
+      }
+
+      const data = await response.json();
+      const stockPrice = data.prices[formattedTicker];
+      
+      if (!stockPrice || !stockPrice.price) {
+        throw new Error('Data harga saham tidak valid');
+      }
+
+      // Calculate values based on real-time price
+      const sharesPerLot = 100; // 1 lot = 100 saham
+      const totalShares = lotsNum * sharesPerLot;
+      
+      let valueIDR, valueUSD;
+      
+      if (stockPrice.currency === 'IDR') {
+        valueIDR = stockPrice.price * totalShares;
+        valueUSD = exchangeRate ? valueIDR / exchangeRate : 0;
+      } else {
+        valueUSD = stockPrice.price * totalShares;
+        valueIDR = exchangeRate ? valueUSD * exchangeRate : 0;
+      }
+
+      // Create stock object with calculated values
+      const stockData = {
+        ticker: ticker.toUpperCase(),
+        lots: lotsNum,
+        valueIDR: valueIDR,
+        valueUSD: valueUSD,
+        currency: stockPrice.currency,
+        price: stockPrice.price,
+        shares: totalShares,
+        type: 'stock',
+        addedAt: new Date().toISOString()
+      };
+
+      console.log('Submitting stock data:', stockData);
+      await onAdd(stockData);
+      
+      // Reset form
       setTicker('');
       setLots('1');
+      setExchange('JK');
       
-      // Opsional: pindah ke tab portfolio setelah tambah
-      if (onComplete) onComplete();
+      // Show success message
+      setSuccess('Saham berhasil ditambahkan');
+      setTimeout(() => setSuccess(null), 3000);
       
-    } catch (err) {
-      setError('Gagal menambahkan saham');
+      // Call onComplete if provided
+      if (onComplete) {
+        onComplete();
+      }
+    } catch (error) {
+      console.error('Error in handleSubmit:', error);
+      setError(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -69,6 +124,12 @@ export default function StockInput({ onAdd, onComplete }) {
       {error && (
         <div className="mb-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-200 px-3 py-2 rounded-lg text-sm">
           {error}
+        </div>
+      )}
+      
+      {success && (
+        <div className="mb-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-200 px-3 py-2 rounded-lg text-sm">
+          {success}
         </div>
       )}
       
@@ -95,35 +156,17 @@ export default function StockInput({ onAdd, onComplete }) {
             <option value="US">US Markets (NASDAQ/NYSE)</option>
             <option value="">Other (auto-detect)</option>
           </select>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Contoh: BBCA, TLKM untuk IDX - AAPL, MSFT, NVDA untuk US
-          </p>
-          {exchange === '' && (
-            <p className="mt-1 text-xs text-red-500 dark:text-red-400">
-              Untuk "Other", harap tambahkan notasi (.JK, .US) secara manual pada kode saham
-            </p>
-          )}
         </div>
         
-        <div className="mb-6">
-          <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Jumlah Saham/Lot</label>
+        <div className="mb-4">
+          <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Jumlah Lot</label>
           <input
-            type="text" // Ubah ke text untuk mendukung angka desimal dengan lebih baik
-            inputMode="decimal" // Menampilkan keyboard numerik dengan desimal di mobile
+            type="text"
             className="w-full p-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 text-gray-800 dark:text-white"
             value={lots}
-            onChange={(e) => {
-              // Hanya terima angka dan titik desimal
-              const value = e.target.value.replace(/[^0-9.]/g, '');
-              setLots(value);
-            }}
-            placeholder="Contoh: 1, 0.5, 0.257906872"
+            onChange={(e) => setLots(e.target.value)}
+            placeholder="Contoh: 1, 0.5"
           />
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {exchange === 'JK' ? 
-              'Untuk IDX: 1 lot = 100 lembar saham' : 
-              'Untuk saham fractional, masukkan angka desimal (contoh: 0.257906872)'}
-          </p>
         </div>
         
         <button

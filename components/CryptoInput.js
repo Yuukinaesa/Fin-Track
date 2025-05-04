@@ -15,6 +15,35 @@ export default function CryptoInput({ onAdd, onComplete }) {
     { symbol: 'SOL', name: 'Solana' }
   ];
   
+  const fetchCryptoPrice = async (symbol) => {
+    try {
+      const response = await fetch(
+        `https://min-api.cryptocompare.com/data/pricemultifull?fsyms=${symbol}&tsyms=USD`,
+        {
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0'
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.RAW && data.RAW[symbol] && data.RAW[symbol].USD) {
+        return data.RAW[symbol].USD.PRICE;
+      }
+      
+      throw new Error('No price data available');
+    } catch (error) {
+      console.error('Error fetching crypto price:', error);
+      throw error;
+    }
+  };
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!symbol) {
@@ -32,10 +61,14 @@ export default function CryptoInput({ onAdd, onComplete }) {
     setIsLoading(true);
     setError(null);
     
-    try {      
+    try {
+      // Fetch current price
+      const price = await fetchCryptoPrice(symbol.toUpperCase());
+      
       onAdd({
         symbol: symbol.toUpperCase(),
         amount: amountValue,
+        price: price,
         type: 'crypto',
         addedAt: new Date().toISOString()
       });
@@ -47,7 +80,8 @@ export default function CryptoInput({ onAdd, onComplete }) {
       if (onComplete) onComplete();
       
     } catch (err) {
-      setError('Gagal menambahkan kripto');
+      console.error('Error in handleSubmit:', err);
+      setError('Gagal menambahkan kripto: ' + err.message);
     } finally {
       setIsLoading(false);
     }

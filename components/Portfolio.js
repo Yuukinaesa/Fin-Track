@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AssetTable from './AssetTable';
 import { FiRefreshCw, FiPlusCircle, FiTrendingUp, FiDollarSign, FiActivity, FiAlertCircle } from 'react-icons/fi';
+import { fetchExchangeRate } from '../lib/fetchPrices';
 
 export default function Portfolio({ 
   assets, 
@@ -10,18 +11,114 @@ export default function Portfolio({
   onDeleteCrypto,
   onAddAsset,
   onSellStock,
-  onSellCrypto
+  onSellCrypto,
+  onRefreshPrices,
+  onRefreshExchangeRate,
+  exchangeRate: propExchangeRate,
+  lastExchangeRateUpdate: propLastExchangeRateUpdate,
+  exchangeRateSource: propExchangeRateSource,
+  exchangeRateError: propExchangeRateError,
+  loadingExchangeRate: propLoadingExchangeRate
 }) {
   const [prices, setPrices] = useState({});
-  const [exchangeRate, setExchangeRate] = useState(null);
-  const [exchangeRateSource, setExchangeRateSource] = useState('');
   const [loading, setLoading] = useState(true);
-  const [loadingExchangeRate, setLoadingExchangeRate] = useState(true);
-  const [lastUpdate, setLastUpdate] = useState('');
-  const [lastExchangeRateUpdate, setLastExchangeRateUpdate] = useState('');
   const [error, setError] = useState(null);
-  const [exchangeRateError, setExchangeRateError] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState('');
+  const [loadingExchangeRate, setLoadingExchangeRate] = useState(false);
+  const [exchangeRate, setExchangeRate] = useState(propExchangeRate);
+  const [exchangeRateError, setExchangeRateError] = useState(propExchangeRateError || null);
+  const [exchangeRateSource, setExchangeRateSource] = useState(propExchangeRateSource || '');
+  const [lastExchangeRateUpdate, setLastExchangeRateUpdate] = useState(propLastExchangeRateUpdate || '');
   const [activeAssetTab, setActiveAssetTab] = useState('all'); // 'all', 'stocks', 'crypto'
+  const [confirmModal, setConfirmModal] = useState(null);
+  
+  const fetchRate = async () => {
+    try {
+      setLoadingExchangeRate(true);
+      setExchangeRateError(null);
+      const rate = await fetchExchangeRate();
+      setExchangeRate(rate);
+      setLastExchangeRateUpdate(new Date().toLocaleString());
+      setExchangeRateSource('Exchange Rates API');
+    } catch (error) {
+      console.error('Error fetching exchange rate:', error);
+      if (error.message.includes('ERR_BLOCKED_BY_CLIENT')) {
+        setExchangeRateError('Koneksi terblokir. Mohon nonaktifkan ad blocker atau extension keamanan browser.');
+      } else {
+        setExchangeRateError(error.message);
+      }
+      setExchangeRate(null);
+    } finally {
+      setLoadingExchangeRate(false);
+    }
+  };
+
+  const fetchPrices = async () => {
+    const stockTickers = assets.stocks.map(stock => stock.ticker);
+    const cryptoSymbols = assets.crypto.map(crypto => crypto.symbol);
+    
+    if (stockTickers.length === 0 && cryptoSymbols.length === 0) {
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch('/api/prices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          stocks: stockTickers,
+          crypto: cryptoSymbols,
+          exchangeRate: exchangeRate
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setPrices(data.prices);
+      setLastUpdate(new Date().toLocaleString());
+    } catch (error) {
+      console.error('Error fetching prices:', error);
+      setError(`Gagal memperbarui data harga: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update the useEffect for exchange rate
+  useEffect(() => {
+    // Fetch immediately on mount
+    fetchRate();
+    
+    // Set up interval for auto-refresh
+    const interval = setInterval(fetchRate, 10 * 60 * 1000); // Update every 10 minutes
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Separate useEffect for prices
+  useEffect(() => {
+    // Fetch prices immediately on mount
+    fetchPrices();
+    
+    // Set up interval for auto-refresh
+    const interval = setInterval(fetchPrices, 10 * 60 * 1000); // Update every 10 minutes
+
+    return () => clearInterval(interval);
+  }, [assets, exchangeRate]);
+
+  const handleRefresh = () => {
+    // Refresh both prices and exchange rate
+    fetchPrices();
+    fetchRate();
+  };
   
   // Helper function to format price
   const formatPrice = (value, currency = 'IDR') => {
@@ -82,26 +179,14 @@ export default function Portfolio({
         };
       }
     } else {
-      // Fallback values if price data isn't available
-      if (asset.ticker.includes(':JK')) {
-        // Assume IDR price for JK stocks
-        const estimatedPriceIDR = 5000; // placeholder for price per share
-        priceData = {
-          price: estimatedPriceIDR,
-          valueIDR: estimatedPriceIDR * amountToSell * 100, // 100 shares per lot
-          valueUSD: exchangeRate ? (estimatedPriceIDR * amountToSell * 100) / exchangeRate : 0,
-          date: new Date().toISOString()
-        };
-      } else {
-        // Assume USD price for other stocks
-        const estimatedPriceUSD = 50; // placeholder
-        priceData = {
-          price: estimatedPriceUSD,
-          valueUSD: estimatedPriceUSD * amountToSell,
-          valueIDR: exchangeRate ? estimatedPriceUSD * amountToSell * exchangeRate : 0,
-          date: new Date().toISOString()
-        };
-      }
+      // If no price data available, show error
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: 'Tidak dapat menjual saham karena data harga tidak tersedia',
+        type: 'error'
+      });
+      return;
     }
     
     // Jumlah yang tersisa setelah penjualan
@@ -144,17 +229,14 @@ export default function Portfolio({
         date: new Date().toISOString()
       };
     } else {
-      // Fallback if no price data
-      // Estimate based on common crypto values
-      const estimatedPriceUSD = getEstimatedCryptoPrice(asset.symbol);
-      const valueUSD = estimatedPriceUSD * amountToSell;
-      
-      priceData = {
-        price: estimatedPriceUSD,
-        valueUSD: valueUSD,
-        valueIDR: exchangeRate ? valueUSD * exchangeRate : 0,
-        date: new Date().toISOString()
-      };
+      // If no price data available, show error
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: 'Tidak dapat menjual kripto karena data harga tidak tersedia',
+        type: 'error'
+      });
+      return;
     }
     
     // Jumlah yang tersisa setelah penjualan
@@ -173,114 +255,6 @@ export default function Portfolio({
     if (onSellCrypto) {
       onSellCrypto(index, asset, amountToSell, priceData);
     }
-  };
-  
-  // Helper to get estimated crypto price for placeholder
-  const getEstimatedCryptoPrice = (symbol) => {
-    // Just a simple estimation for placeholder values
-    const upperSymbol = symbol.toUpperCase();
-    if (upperSymbol === 'BTC') return 50000;
-    if (upperSymbol === 'ETH') return 3000;
-    if (upperSymbol === 'BNB') return 400;
-    if (upperSymbol === 'SOL') return 100;
-    return 1; // Default value for other cryptos
-  };
-
-  // Di dalam fungsi fetchExchangeRate di components/Portfolio.js
-  const fetchExchangeRate = async () => {
-    try {
-      setLoadingExchangeRate(true);
-      setExchangeRateError(null);
-      
-      const response = await fetch('/api/exchange-rate');
-      
-      if (!response.ok) {
-        console.warn(`Exchange rate API error: ${response.status}`);
-        setExchangeRate(null);
-        setExchangeRateSource('');
-        setExchangeRateError(`Gagal memperbarui kurs mata uang (${response.status})`);
-        return;
-      }
-      
-      const data = await response.json();
-      
-      if (data.rate) {
-        setExchangeRate(data.rate);
-        setExchangeRateSource(data.source || 'Exchange Rate API');
-        setLastExchangeRateUpdate(new Date(data.timestamp).toLocaleString());
-      } else {
-        setExchangeRate(null);
-        setExchangeRateSource('');
-        setExchangeRateError('Data kurs mata uang tidak tersedia');
-      }
-    } catch (error) {
-      console.error('Error fetching exchange rate:', error);
-      setExchangeRate(null);
-      setExchangeRateSource('');
-      setExchangeRateError(`Gagal memperbarui kurs: ${error.message}`);
-    } finally {
-      setLoadingExchangeRate(false);
-    }
-  };
-    
-  const fetchPrices = async () => {
-    const stockTickers = assets.stocks.map(stock => stock.ticker);
-    const cryptoSymbols = assets.crypto.map(crypto => crypto.symbol);
-    
-    if (stockTickers.length === 0 && cryptoSymbols.length === 0) {
-      setLoading(false);
-      return;
-    }
-    
-    try {
-      setLoading(true);
-      const response = await fetch('/api/prices', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          stocks: stockTickers,
-          crypto: cryptoSymbols,
-          exchangeRate: exchangeRate
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      setPrices(data.prices);
-      setLastUpdate(new Date().toLocaleString());
-      setError(null);
-    } catch (error) {
-      console.error('Error fetching prices:', error);
-      setError(`Gagal memperbarui data harga: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Fetch exchange rate immediately and periodically
-  useEffect(() => {
-    fetchExchangeRate();
-    const interval = setInterval(fetchExchangeRate, 900000); // Update every 15 minutes
-    
-    return () => clearInterval(interval);
-  }, []);
-  
-  // Fetch asset prices when assets change or on demand
-  useEffect(() => {
-    fetchPrices();
-    const interval = setInterval(fetchPrices, 900000); // Update every 15 minutes
-    
-    return () => clearInterval(interval);
-  }, [assets, exchangeRate]);
-  
-  const handleRefresh = () => {
-    fetchExchangeRate();
-    fetchPrices();
   };
   
   const calculateTotals = () => {
@@ -303,11 +277,19 @@ export default function Portfolio({
         if (price.currency === 'IDR') {
           totalStocksOriginal += price.price * shareCount;
           totalStocksIDR += price.price * shareCount;
-          totalStocksUSD += exchangeRate ? (price.price * shareCount) / exchangeRate : 0;
-        } else if (price.currency === 'USD' && exchangeRate) {
+          if (!exchangeRate) {
+            setExchangeRateError('Kurs tidak tersedia untuk konversi ke USD');
+          } else {
+            totalStocksUSD += (price.price * shareCount) / exchangeRate;
+          }
+        } else if (price.currency === 'USD') {
           totalStocksOriginal += price.price * shareCount;
-          totalStocksIDR += price.price * shareCount * exchangeRate;
           totalStocksUSD += price.price * shareCount;
+          if (!exchangeRate) {
+            setExchangeRateError('Kurs tidak tersedia untuk konversi ke IDR');
+          } else {
+            totalStocksIDR += price.price * shareCount * exchangeRate;
+          }
         }
         
         // Hitung rata-rata perubahan harian
@@ -327,9 +309,9 @@ export default function Portfolio({
         
         totalCryptoUSD += price.price * crypto.amount;
         
-        if (price.priceIDR) {
-          totalCryptoIDR += price.priceIDR * crypto.amount;
-        } else if (exchangeRate) {
+        if (!exchangeRate) {
+          setExchangeRateError('Kurs tidak tersedia untuk konversi ke IDR');
+        } else {
           totalCryptoIDR += price.price * crypto.amount * exchangeRate;
         }
         
@@ -446,28 +428,36 @@ export default function Portfolio({
               <FiDollarSign className="text-orange-500 dark:text-orange-400" />
             </div>
           </div>
-          {exchangeRate ? (
-            <>
-              <p className="text-2xl font-bold text-gray-800 dark:text-white">Rp {exchangeRate.toLocaleString()}</p>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">
-                {exchangeRateSource}
-              </p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-                Diperbarui: {lastExchangeRateUpdate || 'N/A'}
-              </p>
-            </>
-          ) : (
+          {loadingExchangeRate ? (
             <div className="text-center py-3">
               <p className="text-gray-500 dark:text-gray-400">
-                {loadingExchangeRate ? 'Memuat data kurs...' : 'Data kurs tidak tersedia'}
+                Memperbarui...
               </p>
-              <button 
-                onClick={fetchExchangeRate}
-                className="mt-2 text-sm text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300"
-              >
-                Coba lagi
-              </button>
             </div>
+          ) : exchangeRateError ? (
+            <div className="text-center py-3">
+              <p className="text-red-500">{exchangeRateError}</p>
+            </div>
+          ) : (
+            <>
+              {exchangeRate ? (
+                <>
+                  <p className="text-2xl font-bold text-gray-800 dark:text-white">Rp {exchangeRate.toLocaleString()}</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    {exchangeRateSource}
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                    Diperbarui: {lastExchangeRateUpdate || 'N/A'}
+                  </p>
+                </>
+              ) : (
+                <div className="text-center py-3">
+                  <p className="text-gray-500 dark:text-gray-400">
+                    Tidak tersedia
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

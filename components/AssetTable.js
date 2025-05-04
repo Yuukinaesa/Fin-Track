@@ -146,6 +146,93 @@ export default function AssetTable({ assets, prices, exchangeRate, type, onUpdat
     });
   };
   
+  const calculateAssetValue = (asset, currency, exchangeRate) => {
+    if (asset.type === 'stock') {
+      const shareCount = asset.lots * 100; // 1 lot = 100 saham
+      const price = prices[asset.ticker];
+      
+      if (!price) {
+        return {
+          valueIDR: 0,
+          valueUSD: 0,
+          price: 0,
+          error: 'Data harga tidak tersedia'
+        };
+      }
+      
+      if (price.currency === 'IDR') {
+        const assetValue = price.price * shareCount;
+        if (!exchangeRate) {
+          return {
+            valueIDR: assetValue,
+            valueUSD: 0,
+            price: price.price,
+            error: 'Kurs tidak tersedia untuk konversi ke USD'
+          };
+        }
+        const assetValueUSD = assetValue / exchangeRate;
+        
+        return {
+          valueIDR: assetValue,
+          valueUSD: assetValueUSD,
+          price: price.price
+        };
+      } else if (price.currency === 'USD') {
+        const assetValueUSD = price.price * shareCount;
+        if (!exchangeRate) {
+          return {
+            valueIDR: 0,
+            valueUSD: assetValueUSD,
+            price: price.price,
+            error: 'Kurs tidak tersedia untuk konversi ke IDR'
+          };
+        }
+        const assetValue = assetValueUSD * exchangeRate;
+        
+        return {
+          valueIDR: assetValue,
+          valueUSD: assetValueUSD,
+          price: price.price
+        };
+      }
+    } else if (asset.type === 'crypto') {
+      const price = prices[asset.symbol];
+      
+      if (!price) {
+        return {
+          valueIDR: 0,
+          valueUSD: 0,
+          price: 0,
+          error: 'Data harga tidak tersedia'
+        };
+      }
+      
+      const assetValueUSD = price.price * asset.amount;
+      if (!exchangeRate) {
+        return {
+          valueIDR: 0,
+          valueUSD: assetValueUSD,
+          price: price.price,
+          error: 'Kurs tidak tersedia untuk konversi ke IDR'
+        };
+      }
+      const assetValue = assetValueUSD * exchangeRate;
+      
+      return {
+        valueIDR: assetValue,
+        valueUSD: assetValueUSD,
+        price: price.price
+      };
+    }
+    
+    return { 
+      valueIDR: 0, 
+      valueUSD: 0, 
+      price: 0,
+      error: 'Tipe aset tidak valid'
+    };
+  };
+  
   return (
     <ErrorBoundary>
       <div className="overflow-x-auto">
@@ -202,17 +289,11 @@ export default function AssetTable({ assets, prices, exchangeRate, type, onUpdat
                     assetValue = assetValueUSD * exchangeRate;
                   }
                 } 
-                // For crypto
+                // For crypto (always in USD from Binance)
                 else {
-                  if (price.priceIDR) {
-                    priceInIDR = price.priceIDR;
-                    assetValue = price.priceIDR * asset.amount;
-                    assetValueUSD = price.price * asset.amount;
-                  } else if (exchangeRate) {
-                    priceInIDR = originalPrice * exchangeRate;
-                    assetValueUSD = originalPrice * asset.amount;
-                    assetValue = assetValueUSD * exchangeRate;
-                  }
+                  priceInIDR = originalPrice * exchangeRate;
+                  assetValueUSD = originalPrice * asset.amount;
+                  assetValue = assetValueUSD * exchangeRate;
                 }
               }
               
