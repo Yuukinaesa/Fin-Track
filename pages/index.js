@@ -833,16 +833,6 @@ const addCrypto = (crypto) => {
     addTransaction(transactionData);
   };
 
-  // Split state for better organization
-  const [stocks, setStocks] = useState([]);
-  const [crypto, setCrypto] = useState([]);
-
-  // Update portfolio state management
-  useEffect(() => {
-    setStocks(assets.stocks);
-    setCrypto(assets.crypto);
-  }, [assets]);
-
   // Main content - only shown if authenticated
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-800 dark:text-white transition-colors">
