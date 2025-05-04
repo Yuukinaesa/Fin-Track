@@ -13,6 +13,7 @@ import { db } from '../lib/firebase';
 import { FiLogOut, FiUser } from 'react-icons/fi';
 import { debounce } from 'lodash';
 import { calculatePortfolioValue, validateTransaction, isPriceDataAvailable, getRealPriceData } from '../lib/utils';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 export default function Home() {
   const [assets, setAssets] = useState({
@@ -835,124 +836,126 @@ const addCrypto = (crypto) => {
 
   // Main content - only shown if authenticated
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-800 dark:text-white transition-colors">
-      <Head>
-        <title>Fin•Track | Portfolio Dinamis</title>
-        <meta name="description" content="Portfolio dinamis untuk melacak aset saham dan kripto" />
-        <link rel="icon" href="/favicon.ico" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-      </Head>
-      
-      <main className="container mx-auto px-4 py-8 font-['Inter']">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-          <div>
-            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600">
-              Fin•Track
-            </h1>
-            <p className="text-gray-500 dark:text-gray-400">Portfolio Dinamis Saham & Kripto</p>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-            <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1 mr-2">
-              <button 
-                onClick={() => setActiveTab('portfolio')}
-                className={`px-3 py-1.5 text-sm rounded-lg ${
-                  activeTab === 'portfolio' 
-                    ? 'bg-indigo-600 text-white' 
-                    : 'text-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                }`}
-              >
-                Portfolio
-              </button>
-              <button 
-                onClick={() => setActiveTab('add')}
-                className={`px-3 py-1.5 text-sm rounded-lg ${
-                  activeTab === 'add' 
-                    ? 'bg-indigo-600 text-white' 
-                    : 'text-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                }`}
-              >
-                Tambah Aset
-              </button>
-              <button 
-                onClick={() => setActiveTab('history')}
-                className={`px-3 py-1.5 text-sm rounded-lg ${
-                  activeTab === 'history' 
-                    ? 'bg-indigo-600 text-white' 
-                    : 'text-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                }`}
-              >
-                Riwayat
-              </button>
+    <ErrorBoundary>
+      <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-800 dark:text-white transition-colors">
+        <Head>
+          <title>Fin•Track | Portfolio Dinamis</title>
+          <meta name="description" content="Portfolio dinamis untuk melacak aset saham dan kripto" />
+          <link rel="icon" href="/favicon.ico" />
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+        </Head>
+        
+        <main className="container mx-auto px-4 py-8 font-['Inter']">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+            <div>
+              <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600">
+                Fin•Track
+              </h1>
+              <p className="text-gray-500 dark:text-gray-400">Portfolio Dinamis Saham & Kripto</p>
             </div>
             
-            <div className="flex items-center">
-              <ThemeToggle />
-              
-              <div className="flex items-center ml-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full text-sm">
-                <FiUser className="text-gray-500 dark:text-gray-400 mr-2" />
-                <span className="truncate max-w-[100px] sm:max-w-[150px] text-gray-700 dark:text-gray-300">{user?.email}</span>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+              <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1 mr-2">
+                <button 
+                  onClick={() => setActiveTab('portfolio')}
+                  className={`px-3 py-1.5 text-sm rounded-lg ${
+                    activeTab === 'portfolio' 
+                      ? 'bg-indigo-600 text-white' 
+                      : 'text-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  Portfolio
+                </button>
+                <button 
+                  onClick={() => setActiveTab('add')}
+                  className={`px-3 py-1.5 text-sm rounded-lg ${
+                    activeTab === 'add' 
+                      ? 'bg-indigo-600 text-white' 
+                      : 'text-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  Tambah Aset
+                </button>
+                <button 
+                  onClick={() => setActiveTab('history')}
+                  className={`px-3 py-1.5 text-sm rounded-lg ${
+                    activeTab === 'history' 
+                      ? 'bg-indigo-600 text-white' 
+                      : 'text-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  Riwayat
+                </button>
               </div>
               
-              <button 
-                onClick={logout}
-                className="ml-2 bg-gray-100 dark:bg-gray-800 p-2 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-                title="Logout"
-              >
-                <FiLogOut />
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="text-center">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
-              <p>Memuat portfolio...</p>
-            </div>
-          </div>
-        ) : (
-          <>
-            {activeTab === 'add' ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <StockInput onAdd={addStock} onComplete={() => setActiveTab('portfolio')} />
-                <CryptoInput onAdd={addCrypto} onComplete={() => setActiveTab('portfolio')} />
-              </div>
-            ) : activeTab === 'portfolio' ? (
-              <Portfolio 
-                assets={assets} 
-                onUpdateStock={updateStock}
-                onUpdateCrypto={updateCrypto}
-                onDeleteStock={deleteStock}
-                onDeleteCrypto={deleteCrypto}
-                onAddAsset={() => setActiveTab('add')}
-                onSellStock={handleSellStock}
-                onSellCrypto={handleSellCrypto}
-              />
-            ) : activeTab === 'history' ? (
-              loadingTransactions ? (
-                <div className="flex justify-center items-center h-64">
-                  <div className="text-center">
-                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
-                    <p>Memuat riwayat transaksi...</p>
-                  </div>
+              <div className="flex items-center">
+                <ThemeToggle />
+                
+                <div className="flex items-center ml-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full text-sm">
+                  <FiUser className="text-gray-500 dark:text-gray-400 mr-2" />
+                  <span className="truncate max-w-[100px] sm:max-w-[150px] text-gray-700 dark:text-gray-300">{user?.email}</span>
                 </div>
-              ) : (
-                <TransactionHistory 
-                  transactions={transactions} 
-                  userId={user?.uid}
-                  onTransactionsUpdate={setTransactions}
+                
+                <button 
+                  onClick={logout}
+                  className="ml-2 bg-gray-100 dark:bg-gray-800 p-2 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+                  title="Logout"
+                >
+                  <FiLogOut />
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
+                <p>Memuat portfolio...</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'add' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                  <StockInput onAdd={addStock} onComplete={() => setActiveTab('portfolio')} />
+                  <CryptoInput onAdd={addCrypto} onComplete={() => setActiveTab('portfolio')} />
+                </div>
+              ) : activeTab === 'portfolio' ? (
+                <Portfolio 
+                  assets={assets} 
+                  onUpdateStock={updateStock}
+                  onUpdateCrypto={updateCrypto}
+                  onDeleteStock={deleteStock}
+                  onDeleteCrypto={deleteCrypto}
+                  onAddAsset={() => setActiveTab('add')}
+                  onSellStock={handleSellStock}
+                  onSellCrypto={handleSellCrypto}
                 />
-              )
-            ) : null}
-          </>
-        )}
-      </main>
-      
-      <footer className="container mx-auto px-4 py-6 text-center text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-800">
-        <p>© {new Date().getFullYear()} Fin•Track Portfolio Dinamis</p>
-      </footer>
-    </div>
+              ) : activeTab === 'history' ? (
+                loadingTransactions ? (
+                  <div className="flex justify-center items-center h-64">
+                    <div className="text-center">
+                      <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
+                      <p>Memuat riwayat transaksi...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <TransactionHistory 
+                    transactions={transactions} 
+                    userId={user?.uid}
+                    onTransactionsUpdate={setTransactions}
+                  />
+                )
+              ) : null}
+            </>
+          )}
+        </main>
+        
+        <footer className="container mx-auto px-4 py-6 text-center text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-800">
+          <p>© {new Date().getFullYear()} Fin•Track Portfolio Dinamis</p>
+        </footer>
+      </div>
+    </ErrorBoundary>
   );
 }
